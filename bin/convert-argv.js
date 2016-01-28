@@ -11,7 +11,7 @@ module.exports = function(optimist, argv, convertOptions) {
 	// Help
 	if(argv.help) {
 		optimist.showHelp();
-		process.exit(-1);
+		process.exit(-1); // eslint-disable-line
 	}
 
 	// Shortcuts
@@ -80,56 +80,78 @@ module.exports = function(optimist, argv, convertOptions) {
 		options = require(configPath);
 	}
 
-	if(typeof options !== "object" || options === null) {
-		console.log("Config did not export an object.");
-		process.exit(-1);
-	}
+	return processConfiguredOptions(options);
 
-	if(Array.isArray(options)) {
-		options.forEach(processOptions);
-	} else {
-		processOptions(options);
-	}
-
-	if(argv.context) {
-		options.context = path.resolve(argv.context);
-	}
-	if(!options.context) {
-		options.context = process.cwd();
-	}
-
-	if(argv.watch) {
-		// TODO remove this in next major version
-		if(options.watch && typeof options.watch === "object") {
-			console.warn("options.watch is deprecated: Use 'options.watchOptions' instead");
-			options.watchOptions = options.watch;
+	function processConfiguredOptions(options) {
+		if(typeof options !== "object" || options === null) {
+			console.log("Config did not export an object.");
+			process.exit(-1); // eslint-disable-line
 		}
-		// TODO remove this in next major version
-		if(options.watchDelay) {
-			console.warn("options.watchDelay is deprecated: Use 'options.watchOptions.aggregateTimeout' instead");
+
+		// process Promise
+		if(typeof options.then === "function") {
+			return options.then(processConfiguredOptions);
+		}
+
+		// process ES6 default
+		if(typeof options === "object" && typeof options["default"] === "object") {
+			return processConfiguredOptions(options["default"]);
+		}
+
+		if(Array.isArray(options)) {
+			options.forEach(processOptions);
+		} else {
+			processOptions(options);
+		}
+
+		if(argv.context) {
+			options.context = path.resolve(argv.context);
+		}
+		if(!options.context) {
+			options.context = process.cwd();
+		}
+
+		if(argv.watch) {
+			// TODO remove this in next major version
+			if(options.watch && typeof options.watch === "object") {
+				console.warn("options.watch is deprecated: Use 'options.watchOptions' instead");
+				options.watchOptions = options.watch;
+			}
+			// TODO remove this in next major version
+			if(options.watchDelay) {
+				console.warn("options.watchDelay is deprecated: Use 'options.watchOptions.aggregateTimeout' instead");
+				options.watchOptions = options.watchOptions || {};
+				options.watchOptions.aggregateTimeout = options.watchDelay;
+			}
+			options.watch = true;
+		}
+
+		if(argv["watch-delay"]) {
+			console.warn("--watch-delay is deprecated: Use '--watch-aggregate-timeout' instead");
 			options.watchOptions = options.watchOptions || {};
-			options.watchOptions.aggregateTimeout = options.watchDelay;
+			options.watchOptions.aggregateTimeout = +argv["watch-delay"];
 		}
-		options.watch = true;
-	}
 
-	if(argv["watch-delay"]) {
-		console.warn("--watch-delay is deprecated: Use '--watch-aggregate-timeout' instead");
-		options.watchOptions = options.watchOptions || {};
-		options.watchOptions.aggregateTimeout = +argv["watch-delay"];
-	}
+		if(argv["watch-aggregate-timeout"]) {
+			options.watchOptions = options.watchOptions || {};
+			options.watchOptions.aggregateTimeout = +argv["watch-aggregate-timeout"];
+		}
 
-	if(argv["watch-aggregate-timeout"]) {
-		options.watchOptions = options.watchOptions || {};
-		options.watchOptions.aggregateTimeout = +argv["watch-aggregate-timeout"];
-	}
+		if(argv["watch-poll"]) {
+			options.watchOptions = options.watchOptions || {};
+			if(typeof argv["watch-poll"] !== "boolean")
+				options.watchOptions.poll = +argv["watch-poll"];
+			else
+				options.watchOptions.poll = true;
+		}
 
-	if(argv["watch-poll"]) {
-		options.watchOptions = options.watchOptions || {};
-		if(typeof argv["watch-poll"] !== "boolean")
-			options.watchOptions.poll = +argv["watch-poll"];
-		else
-			options.watchOptions.poll = true;
+		if(argv["watch-stdin"]) {
+			options.watchOptions = options.watchOptions || {};
+			options.watchOptions.stdin = true;
+			options.watch = true;
+		}
+
+		return options;
 	}
 
 	function processOptions(options) {
@@ -203,7 +225,7 @@ module.exports = function(optimist, argv, convertOptions) {
 				}
 			} catch(e) {
 				console.log("Invalid plugin arguments " + name + " (" + e + ").");
-				process.exit(-1);
+				process.exit(-1); // eslint-disable-line
 			}
 
 			var path;
@@ -211,7 +233,7 @@ module.exports = function(optimist, argv, convertOptions) {
 				path = resolve.sync(process.cwd(), name);
 			} catch(e) {
 				console.log("Cannot resolve plugin " + name + ".");
-				process.exit(-1);
+				process.exit(-1); // eslint-disable-line
 			}
 			var Plugin;
 			try {
@@ -509,7 +531,8 @@ module.exports = function(optimist, argv, convertOptions) {
 				options.output.filename = path.basename(options.output.filename);
 			} else {
 				optimist.showHelp();
-				process.exit(-1);
+				console.error("Output filename not configured.");
+				process.exit(-1); // eslint-disable-line
 			}
 		}
 
@@ -546,8 +569,5 @@ module.exports = function(optimist, argv, convertOptions) {
 				}
 			});
 		}
-
 	}
-
-	return options;
 };
